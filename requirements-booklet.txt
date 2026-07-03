@@ -1,0 +1,6 @@
+pandas
+rich
+pyserial
+pwntools
+spacepackets
+jupyter
