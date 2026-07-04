@@ -1,12 +1,6 @@
 # Thesis Proposal Alignment Review Against `pwnsat-booklet`
 
-Reviewed proposal:
 
-`D:\Monash University\Semester 4\Term 8\ITI5126-ITI5127-ITI5128 Master Thesis\34292020-RezaMalikiAkbar-BayuAnggorojati-LitReviewProposal_rev2.docx`
-
-Reviewed repository:
-
-`malikiborneo/pwnsat-booklet`, local branch `main`, clean against `origin/main`.
 
 ## Bottom Line
 
