@@ -1,8 +1,14 @@
 # Technical Audit
 
-This document records technical findings from the PwnSat / FlatSat firmware, scripts, and supporting materials.
+This document records technical findings from the PWNSAT / FlatSat firmware, scripts, and supporting materials.
 
-The purpose is to preserve thesis evidence in a structured way. Findings should be validated only in an isolated, authorized laboratory environment.
+The audit now supports the revised thesis direction:
+
+```text
+Experimental Evaluation of Anti-Spoofing Controls Against Space-Link Command-Deception in a PWNSAT FlatSat and Software-Defined Radio Testbed
+```
+
+Findings should be validated only in an isolated, authorised laboratory environment.
 
 ---
 
@@ -10,42 +16,52 @@ The purpose is to preserve thesis evidence in a structured way. Findings should 
 
 In scope:
 
-- PwnSat / FlatSat firmware source review,
-- USB and RF command ingress paths,
-- SPP packet parsing,
-- APID command dispatch,
-- telemetry generation,
-- helper scripts,
-- offline fuzzing and local reproduction.
+- PWNSAT / FlatSat firmware source review,
+- CCSDS SPP packet parsing,
+- APID dispatch,
+- command-handler behaviour,
+- telemetry response behaviour,
+- USB/local reproduction,
+- controlled SDR-assisted observability,
+- spoofing-resilience control insertion points.
 
 Out of scope:
 
 - real satellites,
 - public RF systems,
 - third-party ground stations,
-- unauthorized transmission,
-- operational jamming procedures.
+- unauthorised transmission,
+- operational jamming,
+- GNSS spoofing,
+- harmful real-world forged-command instructions.
 
 ---
 
-## System Summary
+## Revised System Summary
 
-The command path can be summarized as:
+The command acceptance path can be simplified as:
 
 ```text
-USB CDC framed input
-  -> commandHandler()
-  -> spp_unpack_packet()
-  -> commandApidHandler()
-
-RF uplink input
-  -> uplink receive path
-  -> commandHandler()
-  -> spp_unpack_packet()
-  -> commandApidHandler()
+Receiver / local input
+  -> frame handling
+  -> SPP header parse
+  -> APID dispatch
+  -> command handler
+  -> subsystem state or telemetry response
 ```
 
-The two practical ingress paths converge at the same parser and APID dispatcher. This makes the parser and dispatcher critical trust boundaries.
+This is the path where the revised thesis evaluates anti-spoofing controls.
+
+---
+
+## Main Control Insertion Points
+
+| Pipeline Stage | Relevant Control |
+|---|---|
+| Before SPP header parse | Cryptographic authentication / HMAC verification |
+| During SPP header parse | Length and structural validation |
+| Between parse and dispatch | Sequence-counter freshness / anti-replay |
+| Before command handler | Command allow-listing and strict typing |
 
 ---
 
@@ -53,280 +69,228 @@ The two practical ingress paths converge at the same parser and APID dispatcher.
 
 | ID | Finding | Class | Thesis Relevance |
 |---|---|---|---|
-| AUDIT-001 | Unauthenticated command execution path | Missing authentication / authorization | Command authority and rogue ground-station modeling |
-| AUDIT-002 | Cleartext telemetry downlink | Missing confidentiality / integrity | Telemetry trust and observability |
-| AUDIT-003 | SPP parser length validation weakness | Parser robustness / memory safety | Malformed packet and service-disruption testing |
-| AUDIT-004 | Broadcast APID underflow candidate | Handler-level memory corruption | Exploit reliability and defensive hardening |
-| AUDIT-005 | Reset command denial of service | Command abuse | Service-disruption modeling |
-| AUDIT-006 | Beacon-rate abuse | Logic flaw / traffic flood | Service-degradation experiment |
-| AUDIT-007 | Flash-transfer blocking behavior | Command abuse / exfiltration | Telemetry disruption and data exposure |
-| AUDIT-008 | Thruster state manipulation | Unauthorized state change | Mission-impact modeling |
-| AUDIT-009 | USB frame boundary issue | Local framing DoS | Transport robustness |
-| AUDIT-010 | Sensor telemetry trust issue | Internal bus / telemetry trust | I2C-to-telemetry correlation |
+| AUDIT-001 | Command path accepts well-formed SPP/APID traffic before strong source validation | Command authority / spoofing risk | Baseline spoofing susceptibility |
+| AUDIT-002 | SPP parser length validation weakness | Parser robustness / structural validation | C3 length-control evaluation |
+| AUDIT-003 | APID dispatch exposes mission-impacting handlers | Command authorization | C2 allow-list and strict typing evaluation |
+| AUDIT-004 | Sequence fields exist but freshness enforcement is not central in baseline command path | Replay/spoofing resilience | C4 sequence freshness evaluation |
+| AUDIT-005 | Reset, beacon, flash, broadcast, and thruster handlers can create visible state/service effects | Mission impact | Safe analogue disruption metrics |
+| AUDIT-006 | Telemetry is useful as evidence of command acceptance and state change | Observability | RQ3 log/telemetry correlation |
+| AUDIT-007 | USB/local command path enables safe reproduction before RF-backed trials | Reproducibility | Software-first and USB-first methodology |
+| AUDIT-008 | SDR/link evidence can complement COSMOS and firmware logs | Measurement fidelity | Time-aligned detection/recovery evidence |
 
 ---
 
-## AUDIT-001: Unauthenticated Command Execution Path
+## AUDIT-001: Well-Formed Command Traffic Can Reach the Command Path
 
 ### Description
 
-The firmware command path accepts command-like traffic from USB and RF before dispatching by APID. No command authentication, sender authorization, anti-replay, or per-APID policy is enforced before command execution.
-
-### Impact
-
-A compatible lab command source can attempt to invoke state-changing handlers such as reset, beacon rate, thruster state, broadcast, and flash transfer.
+The firmware exposes command-like processing through SPP/APID packet handling. In the baseline system, the key question is whether a packet that is syntactically correct is treated as legitimate.
 
 ### Thesis Use
 
-This supports experiments on command authority and defensive controls such as authentication, APID policy, anti-replay, and rate limiting.
+This is the baseline condition for the forged-telecommand spoofing experiment.
 
-### Candidate Controls
+### Control Relationship
 
-- command authentication,
-- APID authorization,
-- TC/TM direction enforcement,
-- anti-replay counter,
-- accepted/rejected command telemetry.
+- C1 cryptographic authentication should stop unauthorised packets before parse/dispatch.
+- C2 allow-listing should stop unauthorised APID/command combinations before handler execution.
+
+### Metrics
+
+- forged-command acceptance rate,
+- chain completion rate,
+- false rejection rate for legitimate commands.
 
 ---
 
-## AUDIT-002: Cleartext Telemetry Downlink
+## AUDIT-002: SPP Parser Length Validation Weakness
 
 ### Description
 
-Telemetry is built into plaintext SPP packets and transmitted over the downlink path.
-
-### Impact
-
-A compatible receiver in an authorized lab setup can observe telemetry, packet timing, APIDs, and state changes.
+The SPP parser uses packet length fields to determine how much data is copied and interpreted. Any mismatch between declared length and actual packet size is security-relevant.
 
 ### Thesis Use
 
-This supports telemetry trust, observability, and downlink confidentiality discussion.
+This finding supports the length and structural validation control.
 
-### Candidate Controls
+### Control Relationship
 
-- telemetry integrity protection,
-- authenticated encryption where appropriate,
-- sequence counters,
-- anomaly flags,
-- operator-visible command audit telemetry.
+C3 should enforce:
+
+```text
+buffer != NULL
+space_packet != NULL
+buffer_len >= SPP_PRIMARY_HEADER_LEN
+data_field_size = header.length + 1
+data_field_size <= SPP_MAX_PAYLOAD_CHUNK
+buffer_len == SPP_PRIMARY_HEADER_LEN + data_field_size
+```
+
+### Metrics
+
+- malformed packet rejection rate,
+- unexpected handler reachability,
+- valid packet false rejection rate.
 
 ---
 
-## AUDIT-003: SPP Parser Length Validation Weakness
+## AUDIT-003: APID Dispatch Is a Command-Authority Boundary
 
 ### Description
 
-The SPP parser uses the declared length field when copying packet data. The parser should verify that the received buffer length is sufficient for the declared data size before copying.
-
-### Impact
-
-Malformed or truncated packets may cause out-of-bounds reads, unstable handler behavior, or crash-like behavior in local fuzzing and lab reproduction.
+APID dispatch determines which handler receives a packet. A forged packet with the correct packet type and APID can potentially reach a mission-impacting handler unless command identity and type are checked.
 
 ### Thesis Use
 
-This is the strongest parser-hardening finding. It supports experiments comparing baseline parsing with strict length validation.
+This is the main reason command allow-listing and strict typing are included as a control.
 
-### Candidate Controls
+### Control Relationship
 
-- validate `buffer != NULL`,
-- validate `space_packet != NULL`,
-- validate `buffer_len >= SPP_PRIMARY_HEADER_LEN`,
-- compute `data_field_size = header.length + 1`,
-- require `data_field_size <= SPP_MAX_PAYLOAD_CHUNK`,
-- require `buffer_len == SPP_PRIMARY_HEADER_LEN + data_field_size`, or explicitly document trailing-byte handling.
+C2 should enforce a manifest of valid tuples:
+
+```text
+APID + Packet Type + Command ID + Expected Length + Required Mode
+```
+
+### Metrics
+
+- invalid APID rejection rate,
+- wrong Packet Type rejection rate,
+- unauthorized command rejection rate,
+- valid command acceptance rate.
 
 ---
 
-## AUDIT-004: Broadcast APID Underflow Candidate
+## AUDIT-004: Sequence Freshness Is a Required Anti-Spoofing Layer
 
 ### Description
 
-The broadcast handler expects a two-byte frequency field, then computes message length from the declared payload size. If the declared payload size is shorter than required, subtracting two from the payload length can underflow.
-
-### Impact
-
-This is a memory-corruption candidate and should be treated carefully. A full code-execution claim should only be made if debugger evidence proves control of execution.
+The SPP header contains sequence information, but sequence fields only provide protection if the receiver enforces freshness and rejects stale or duplicate values.
 
 ### Thesis Use
 
-This supports exploit-reliability analysis and safe claim levels.
+This supports Scenario S2, the sequence-aware spoofing variant.
 
-### Candidate Controls
+### Control Relationship
 
-- require minimum payload length before reading fields,
-- require `payload_total >= 2`,
-- require `msg_len <= sizeof(buffer_msg)`,
-- return structured error telemetry for malformed commands.
+C4 should implement per-APID freshness logic:
+
+```text
+reject duplicate sequence count
+reject backwards sequence count
+apply sliding acceptance window
+record rejection reason
+```
+
+### Metrics
+
+- replayed/duplicate command rejection rate,
+- false rejection rate under acceptable packet loss,
+- command acceptance rate after sequence enforcement.
 
 ---
 
-## AUDIT-005: Reset Command Denial of Service
+## AUDIT-005: Command Handlers Create Measurable Safe-Analogue Impact
 
 ### Description
 
-The reset APID can trigger a watchdog reset without authentication, confirmation, mode check, or rate limit.
-
-### Impact
-
-Repeated reset commands can degrade availability and prevent stable telemetry or command processing.
+Handlers such as reset, beacon-rate change, flash-transfer, broadcast, or thruster-state changes can produce visible state, telemetry, timing, or service-continuity effects.
 
 ### Thesis Use
 
-This is a simple and reliable service-disruption scenario.
+These effects provide measurable lab-safe outcomes for spoofing-driven disruption.
 
-### Candidate Controls
+### Safe Measurement Options
 
-- authentication,
-- reset cooldown,
-- mode restriction,
-- command confirmation,
-- lockout after repeated reset attempts.
+- telemetry deviation,
+- command ACK / no ACK,
+- state variable changed / unchanged,
+- recovery time,
+- command-path delay,
+- operator-visible log event.
+
+### Control Relationship
+
+All controls should reduce unauthorised handler execution.
 
 ---
 
-## AUDIT-006: Beacon-Rate Abuse
+## AUDIT-006: Telemetry Is Evidence, Not Just Output
 
 ### Description
 
-The beacon-rate APID accepts low interval values, including values that may cause excessive beacon transmission.
-
-### Impact
-
-Beacon flooding can increase traffic and interfere with normal telemetry scheduling.
+Telemetry can show whether a command changed state, whether service continuity was affected, and whether recovery occurred.
 
 ### Thesis Use
 
-This supports service-degradation experiments with measurable telemetry timing impact.
+Telemetry supports RQ3: combining COSMOS logs and SDR/link observations for detection and chain reconstruction.
 
-### Candidate Controls
+### Metrics
 
-- minimum interval,
-- maximum interval,
-- change-rate limit,
-- command authorization,
-- safe default behavior.
+- telemetry deviation timeline,
+- time-to-detect,
+- time-to-recover,
+- command acceptance/rejection visibility.
 
 ---
 
-## AUDIT-007: Flash-Transfer Blocking Behavior
+## AUDIT-007: USB/Software-First Path Supports Safe Reproducibility
 
 ### Description
 
-The flash-transfer command sends a chunked static blob and blocks normal telemetry while transfer is active.
-
-### Impact
-
-Repeated transfer requests can degrade telemetry availability and expose embedded data.
+Before using any RF-backed setup, the command path can be exercised locally through software-first or USB-first testing.
 
 ### Thesis Use
 
-This connects command injection to telemetry disruption and exfiltration-like behavior.
+This protects the timeline and safety posture. The thesis can produce results even if hardware integration is delayed.
 
-### Candidate Controls
+### Metrics
 
-- transfer quota,
-- authenticated transfer mode,
-- non-blocking transfer state machine,
-- telemetry priority preservation,
-- rate limiting.
+- software-first result,
+- hardware-backed confirmation result,
+- consistency between emulator and FlatSat behaviour.
 
 ---
 
-## AUDIT-008: Thruster State Manipulation
+## AUDIT-008: SDR-Assisted Observability Improves Measurement Fidelity
 
 ### Description
 
-The thruster APID changes simulated actuator state using command payload bytes.
-
-### Impact
-
-A command source can alter mission-visible state reflected in telemetry.
+SDR evidence can help correlate link events with COSMOS logs and telemetry changes. It is not the whole thesis; it is an evidence stream.
 
 ### Thesis Use
 
-This is useful for demonstrating mission-impact semantics without physical actuator risk.
+Supports RQ3 and improves confidence in timing and chain reconstruction.
 
-### Candidate Controls
+### Metrics
 
-- authentication,
-- mode gate,
-- allowed range checks,
-- command audit telemetry,
-- safe-state fallback.
-
----
-
-## AUDIT-009: USB Frame Boundary Issue
-
-### Description
-
-The USB command path accepts framed packets with a two-byte length field. Boundary cases near the maximum frame size should be rejected cleanly and should not stall parser synchronization.
-
-### Impact
-
-Malformed local USB frames may degrade local command handling or force resynchronization.
-
-### Thesis Use
-
-This helps distinguish transport robustness from command/parser vulnerability.
-
-### Candidate Controls
-
-- reject frames where `HEADER_SIZE + len > sizeof(rx_buffer)`,
-- add frame timeout,
-- add resynchronization policy,
-- add per-source rate limiting.
-
----
-
-## AUDIT-010: Sensor Telemetry Trust Issue
-
-### Description
-
-Sensor readings are placed into telemetry, but status and plausibility are not strongly represented in telemetry output.
-
-### Impact
-
-Manipulated or failed sensor data may be trusted by operators unless telemetry carries validity and anomaly information.
-
-### Thesis Use
-
-This supports telemetry trust and I2C-to-telemetry correlation experiments.
-
-### Candidate Controls
-
-- sensor validity flags,
-- range checks,
-- jump detection,
-- redundant measurements,
-- integrity protection,
-- command/event audit telemetry.
+- event alignment accuracy,
+- time-to-detect,
+- correlation between link evidence and mission logs.
 
 ---
 
 ## Claim-Level Guidance
 
-Use careful wording:
-
-| Claim | Required Evidence |
+| Claim | Evidence Required |
 |---|---|
-| Command accepted | Logs, ACK, telemetry response, or state change. |
-| Service disruption | Reproducible reset, lockup, telemetry loss, or timing degradation. |
-| Memory corruption | Crash, sanitizer finding, fault log, or invalid memory access evidence. |
-| Control-flow influence | Controlled fault address, saved register corruption, or debugger evidence. |
-| Code execution | Controlled execution of chosen code path in target context. |
+| Baseline command accepted | Logs, ACK, telemetry response, or state change. |
+| Spoofing chain completed | Forged command reaches target handler and produces defined safe effect. |
+| Control prevented spoofing | Same command rejected under control-enabled condition. |
+| Detection improved | Logs/telemetry/SDR show reduced time-to-detect. |
+| Recovery improved | Baseline state restored faster or more consistently. |
+| Memory corruption | Crash, sanitizer finding, debugger evidence, or invalid memory access evidence. |
 
 ---
 
 ## Next Evidence to Collect
 
-- USB PING baseline.
-- USB and RF telemetry baseline.
-- RESET service-disruption record.
-- BEACON_RATE timing impact record.
-- FLASH transfer timing record.
-- APID `0x06` malformed packet crash or non-crash record.
-- I2C capture to telemetry correlation.
-- Baseline vs hardened-firmware comparison.
+- baseline valid PING / status command,
+- baseline forged-command acceptance/rejection record,
+- C1 HMAC acceptance/rejection result,
+- C2 allow-list rejection result,
+- C3 length validation rejection result,
+- C4 sequence freshness rejection result,
+- combined-control matrix result,
+- time-aligned COSMOS / telemetry / SDR evidence,
+- safe threats-to-validity notes.
