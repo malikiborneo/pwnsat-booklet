@@ -41,3 +41,16 @@ pwnsat-booklet/
 └── requirements-booklet.txt
 
 ```
+---
+
+## Safety and Scope
+
+All work in this repository is intended for an isolated, authorized lab environment only.
+
+This repository must not be used against real satellites, real ground stations, public RF systems, or any system without authorization.
+
+---
+
+## Status
+
+This repository is currently under active development as part of thesis preparation and PwnSat / FlatSat lab documentation.
