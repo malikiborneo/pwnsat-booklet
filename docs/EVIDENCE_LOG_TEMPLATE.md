@@ -1,6 +1,6 @@
 # Evidence Log Template
 
-Use this template for every thesis experiment, packet test, crash reproduction, telemetry observation, or defensive-control evaluation.
+Use this template for every latest-thesis experiment: spoofing baseline, control-enabled run, packet test, telemetry observation, SDR observation, or recovery measurement.
 
 Good evidence is what turns a lab observation into a thesis result.
 
@@ -12,26 +12,26 @@ Good evidence is what turns a lab observation into a thesis result.
 Test ID:
 Date / Time:
 Researcher:
+Thesis phase: software-first / FlatSat-backed
 Firmware commit or build:
 Repository commit:
-Hardware setup:
-Transport:
+Control configuration:
+Scenario: S1 forged telecommand / S2 sequence-aware spoof
+Transport: emulator / USB / cabled SDR / shielded SDR / receive-only observation
 Safety controls:
 ```
 
 ---
 
-## Scope
+## Research Question Link
 
 ```text
-Experiment group:
-  Command authority / Parser robustness / Service disruption / Telemetry trust / Other
+Relevant RQ:
+  RQ1 scenario reproduction / RQ2 control effectiveness / RQ3 observability
 
 Objective:
 
-In-scope actions:
-
-Out-of-scope actions:
+Hypothesis:
 ```
 
 ---
@@ -39,58 +39,90 @@ Out-of-scope actions:
 ## Setup
 
 ```text
-Board:
-Power source:
-USB port / serial port:
-RF setup, if used:
-Shielding or containment:
-Logic analyzer, if used:
-SDR receiver, if used:
+Ground Station VM:
+OpenC3 COSMOS version/config:
+Attacker or analysis VM:
+PWNSAT FlatSat hardware:
+OBC emulator version, if used:
+SDR device, if used:
+RF containment method:
+Clock/time synchronisation method:
 Software tools:
 ```
 
 ---
 
-## Packet or Input
+## Control Configuration
+
+Mark enabled controls:
+
+```text
+[ ] Baseline, no added controls
+[ ] C1 Cryptographic authentication
+[ ] C2 Command allow-listing / strict typing
+[ ] C3 Length and structural validation
+[ ] C4 Sequence-counter freshness / anti-replay
+```
+
+Control implementation notes:
+
+```text
+C1 details:
+C2 manifest/version:
+C3 validation rules:
+C4 window/counter rule:
+```
+
+---
+
+## Packet or Input Record
 
 ```text
 APID:
-Packet type:
+Packet Type:
+Command ID, if applicable:
 Sequence flags:
 Sequence count:
 Length field:
 Declared data size:
 Actual captured size:
 Payload meaning:
+Authentication tag present? yes/no
+Authentication valid? yes/no/not applicable
 Raw SPP bytes:
 USB framed bytes, if used:
-RF ASCII-hex form, if used:
+RF/link representation, if used:
 ```
 
 ---
 
-## Expected Behavior
+## Expected Behaviour
 
 ```text
 Expected parser result:
-Expected handler:
+Expected control decision:
+Expected APID dispatch result:
+Expected handler behaviour:
 Expected telemetry/log output:
-Expected LED/board behavior:
-Expected safety behavior:
+Expected SDR/link observation:
+Expected recovery behaviour:
 ```
 
 ---
 
-## Observed Behavior
+## Observed Behaviour
 
 ```text
 Observed parser result:
-Observed handler behavior:
+Observed control decision:
+Observed APID dispatch result:
+Observed handler behaviour:
 Observed telemetry/log output:
-Observed LED/board behavior:
-Observed reset/crash/lockup:
-Observed timing:
-Unexpected behavior:
+Observed SDR/link observation:
+Observed state change:
+Observed reset/crash/lockup, if any:
+Observed recovery behaviour:
+Unexpected behaviour:
 ```
 
 ---
@@ -99,42 +131,46 @@ Unexpected behavior:
 
 | Metric | Value | Notes |
 |---|---:|---|
-| Command accepted | TBD | yes/no |
-| Command rejected | TBD | yes/no |
+| Forged command accepted | TBD | yes/no |
+| Forged command rejected | TBD | yes/no |
 | Rejection reason visible | TBD | yes/no |
-| Telemetry lost | TBD | seconds |
-| Recovery time | TBD | seconds |
-| Crash/reset occurred | TBD | yes/no |
+| Chain completed | TBD | yes/no |
+| Safe analogue impact observed | TBD | yes/no |
+| Disruption duration | TBD | seconds |
+| Time-to-detect | TBD | seconds |
+| Time-to-recover | TBD | seconds |
+| False rejection of legitimate command | TBD | yes/no |
+| Added latency | TBD | ms |
 | Reproduction count | TBD | successful / total |
-| Detection time | TBD | seconds |
-| Control improvement | TBD | baseline vs protected |
+
+---
+
+## Evidence Streams
+
+```text
+COSMOS command log:
+COSMOS telemetry log:
+Raw packet trace:
+Decoded SPP packet output:
+OBC emulator log:
+FlatSat serial log:
+SDR/link capture:
+Screenshot:
+Notebook output:
+Attack Flow artifact:
+SPARTA mapping table:
+```
 
 ---
 
 ## SPARTA / Attack Flow Mapping
 
 ```text
-Attack Flow step:
-SPARTA tactic:
-SPARTA technique:
+Attack Flow step reached:
+Attack Flow step interrupted:
+SPARTA tactic/technique:
 Affected trust boundary:
-Mission impact category:
-```
-
----
-
-## Evidence Files
-
-```text
-Serial log:
-USB capture:
-RF capture:
-Logic analyzer capture:
-Screenshot:
-Notebook output:
-Crash artifact:
-Telemetry record:
-Attack Flow file:
+Control responsible for interruption:
 ```
 
 ---
@@ -148,22 +184,13 @@ What does this prove?
 
 What does this not prove?
 
-Is the result reproducible?
+Was the result reproduced?
 
-Is the claim level source-code evidence, packet evidence, demonstrated impact, memory corruption, control-flow influence, or code execution?
-```
+Does the result support RQ1, RQ2, or RQ3?
 
----
+What is the control effectiveness conclusion?
 
-## Defensive Control Result
-
-```text
-Control tested:
-Baseline behavior:
-Protected behavior:
-Improvement observed:
-Remaining weakness:
-Next hardening step:
+What operational trade-off appeared?
 ```
 
 ---
@@ -175,46 +202,49 @@ Select one:
 | Claim Level | Evidence Required | Selected? |
 |---|---|---|
 | Source-code risk | Code path or design shows possible weakness. |  |
-| Reachable behavior | Packet reaches parser or handler. |  |
-| Demonstrated impact | Logs, telemetry, reset, state change, or timing disruption observed. |  |
-| Reproducible impact | Same effect reproduced across repeated trials. |  |
-| Memory corruption | Crash, sanitizer result, or fault evidence. |  |
-| Control-flow influence | Debugger shows controlled fault or saved-register influence. |  |
-| Code execution | Chosen code path executed in target context. |  |
+| Scenario reproduced | Spoofing chain step is reproduced in authorised lab. |  |
+| Command accepted | Forged command reaches handler or produces defined safe effect. |  |
+| Command rejected by control | Same packet rejected under control-enabled condition. |  |
+| Demonstrated disruption analogue | Telemetry/state/timing deviation observed. |  |
+| Detection improvement | TTD improves or rejection becomes visible in logs/telemetry. |  |
+| Recovery improvement | TTR improves or baseline state restored more reliably. |  |
+| Memory corruption | Crash/sanitizer/debugger evidence exists. |  |
 
 ---
 
-## Notes
+## Threats to Validity Notes
 
 ```text
-Open questions:
-Limitations:
-Follow-up test:
-Supervisor discussion point:
+Internal validity concern:
+External validity concern:
+Construct validity concern:
+Mitigation applied:
+Remaining limitation:
 ```
 
 ---
 
 ## Short Markdown Result Format
 
-Use this for thesis tables:
+Use this format in thesis drafts:
 
 ```md
 ### Test ID: <ID>
 
+- **Scenario:** S1 / S2
+- **Control configuration:** Baseline / C1 / C2 / C3 / C4 / combination
 - **Objective:**
-- **Transport:**
-- **Packet/APID:**
 - **Expected:**
 - **Observed:**
-- **SPARTA Mapping:**
-- **Metric Result:**
+- **Metric result:**
+- **SPARTA / Attack Flow:**
 - **Interpretation:**
-- **Mitigation:**
+- **Threats to validity:**
+- **Next step:**
 ```
 
 ---
 
 ## Rule
 
-Do not rely on memory. Save packet bytes, decoded fields, logs, screenshots, and timing results as soon as the test is performed.
+Do not rely on memory. Save packet bytes, decoded fields, logs, screenshots, traces, timing values, and control decisions immediately after each test.
