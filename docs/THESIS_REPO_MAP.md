@@ -1,26 +1,28 @@
 # Thesis Repository Map
 
-This document explains how each major part of the repository supports the thesis.
+This document explains how each major part of the repository supports the latest thesis direction.
 
 It is different from `REPO_INDEX.md`. The repository index explains **where files are**. This document explains **why those files matter for the research**.
 
 ---
 
-## Thesis Direction
+## Latest Thesis Direction
 
-The repository supports research on satellite service-disruption risk using a controlled PwnSat / FlatSat laboratory environment.
+**Experimental Evaluation of Anti-Spoofing Controls Against Space-Link Command-Deception in a PWNSAT FlatSat and Software-Defined Radio Testbed**
 
-The intended thesis workflow is:
+The repository now supports this workflow:
 
 ```text
-PwnSat / FlatSat testbed
-  -> command and telemetry path analysis
-  -> vulnerability and disruption-chain identification
-  -> Attack Flow modeling
-  -> SPARTA mapping
-  -> defensive-control evaluation
-  -> measurement and thesis evidence
+PWNSAT / FlatSat testbed
+  -> CCSDS SPP telecommand path analysis
+  -> controlled forged-telecommand spoofing scenario
+  -> anti-spoofing defensive controls
+  -> repeated measurement
+  -> SPARTA / Attack Flow interpretation
+  -> thesis evidence
 ```
+
+The older ground-segment-control framing remains useful context, but the current contribution is narrower: protocol-level spoofing resilience in a PWNSAT FlatSat / SDR lab.
 
 ---
 
@@ -28,141 +30,108 @@ PwnSat / FlatSat testbed
 
 | Area | Repository Role | Thesis Role |
 |---|---|---|
-| `firmware/` | PwnSat / FlatSat firmware source and build artifacts. | Evidence for command path, parser behavior, APID dispatch, telemetry generation, and hardening opportunities. |
-| `scripts/` | Python helpers for packet building, decoding, USB command delivery, fuzzing support, and I2C parsing. | Supports repeatable experiments, packet analysis, and evidence generation. |
-| `sparta/` | Attack Flow Builder artifacts. | Supports SPARTA-mapped attack-chain modeling. |
-| `resources/` | Logic analyzer captures and exported analysis files. | Supports reproducibility and hardware-to-telemetry evidence. |
-| `static/` | Images, screenshots, diagrams, and figures. | Supports thesis figures, lab evidence, and presentation material. |
-| root Markdown chapters | Booklet and methodology narrative. | Provides background, workflow, threat model, technical analysis, and defensive discussion. |
-| `Booklet.ipynb` | Hands-on analysis notebook. | Supports offline analysis, repeatable packet exercises, and lab report generation. |
+| `firmware/` | PWNSAT / FlatSat firmware source and build artifacts. | Evidence for OBC command pipeline, SPP parser, APID dispatch, command handlers, telemetry behaviour, and control insertion points. |
+| `scripts/` | Python helpers for packet building, decoding, USB delivery, fuzzing support, and I2C parsing. | Supports reproducible SPP packet analysis, command construction, offline testing, and evidence generation. |
+| `sparta/` | Attack Flow Builder artifacts. | Supports SPARTA/Attack Flow interpretation of the spoofing chain and defensive breakpoints. |
+| `resources/` | Logic analyzer captures and exported data. | Supports lab reproducibility and sensor/telemetry context. |
+| `static/` | Images, screenshots, diagrams, and figures. | Supports thesis figures, lab setup explanation, packet analysis, and SPARTA diagrams. |
+| root Markdown chapters | Booklet and methodology narrative. | Provides background on space fundamentals, protocol analysis, RF attack surface, exploitation, reliability, and hardening. |
+| `Booklet.ipynb` | Hands-on analysis notebook. | Can become a reproducible analysis notebook for SPP decoding, packet comparison, and experiment evidence. |
 
 ---
 
-## Firmware Folder
+## How Each Folder Supports the Revised Thesis
 
-Purpose in repository:
+### `firmware/`
 
-- Implements the PwnSat / FlatSat firmware.
-- Defines radio configuration, USB command handling, packet parsing, telemetry generation, and command dispatch.
+Main thesis use:
 
-Purpose in thesis:
+- understand the Receiver -> SPP Header Parse -> APID Dispatch -> Command Handler path,
+- identify where anti-spoofing controls should be inserted,
+- compare baseline acceptance against protected behaviour,
+- observe telemetry and state changes after command attempts.
 
-- Provides source-code evidence for trust-boundary analysis.
-- Supports parser robustness experiments.
-- Supports APID authorization experiments.
-- Supports service-disruption experiments.
-- Supports defensive hardening evaluation.
+Most relevant files:
 
-Key thesis files:
+- `spp.h` / `spp.cpp` for packet parsing and length handling,
+- `mission.h` for APID definitions,
+- `worker.cpp` for command dispatch and handlers,
+- `ruplink.cpp` / `rdownlink.cpp` for link-facing behaviour,
+- `usbCDC.cpp` for local reproducible command delivery,
+- `sensors.cpp` and `thruster.cpp` for telemetry/state effects.
 
-- `firmware/spp.h`
-- `firmware/spp.cpp`
-- `firmware/worker.cpp`
-- `firmware/ruplink.cpp`
-- `firmware/rdownlink.cpp`
-- `firmware/usbCDC.cpp`
-- `firmware/mission.h`
-- `firmware/sensors.cpp`
-- `firmware/thruster.cpp`
+### `scripts/`
 
----
+Main thesis use:
 
-## Scripts Folder
+- build and decode SPP packets,
+- compare raw SPP, USB-framed, and RF-ready representations,
+- generate safe lab inputs,
+- parse evidence files.
 
-Purpose in repository:
+Most relevant files:
 
-- Provides analysis and experiment helper scripts.
+- `spp_tools.py`,
+- `usb_tc_send.py`,
+- `i2c_parser.py`,
+- `fuzz_offset.py`,
+- `fuzz_exploit.py`.
 
-Purpose in thesis:
+### `sparta/`
 
-- Makes packet construction and decoding repeatable.
-- Helps distinguish protocol bugs from transport problems.
-- Supports logic-analyzer capture analysis.
-- Supports controlled local fuzzing evidence.
+Main thesis use:
 
-Key thesis files:
+- represent the spoofing chain as Attack Flow,
+- map steps to SPARTA techniques,
+- document where each defensive control interrupts the chain.
 
-- `scripts/spp_tools.py`
-- `scripts/usb_tc_send.py`
-- `scripts/i2c_parser.py`
-- `scripts/fuzz_offset.py`
-- `scripts/fuzz_exploit.py`
+### `resources/`
 
----
+Main thesis use:
 
-## SPARTA Folder
+- store raw captures,
+- preserve reproducibility evidence,
+- support lab traceability.
 
-Purpose in repository:
+### `static/`
 
-- Stores Attack Flow Builder files for SPARTA mapping.
+Main thesis use:
 
-Purpose in thesis:
-
-- Connects technical findings to a space-domain threat framework.
-- Helps show that each lab behavior is part of a broader attack chain.
-- Supports structured communication with supervisors, examiners, and readers.
+- diagrams for FlatSat architecture,
+- screenshots from Black Hat Asia/PWNSAT workflow,
+- SPARTA visuals,
+- protocol and hardware figures.
 
 ---
 
-## Resources Folder
+## Current Research Interpretation
 
-Purpose in repository:
-
-- Stores raw and exported lab captures.
-
-Purpose in thesis:
-
-- Provides reproducible evidence.
-- Supports hardware discovery and telemetry correlation.
-- Helps show how physical bus activity maps to mission telemetry.
-
----
-
-## Static Folder
-
-Purpose in repository:
-
-- Stores screenshots, lab images, diagrams, and figures.
-
-Purpose in thesis:
-
-- Provides visual evidence for lab setup, protocol analysis, SPARTA mapping, fuzzing, and hardware reconnaissance.
-
----
-
-## Root Markdown Chapters
-
-Purpose in repository:
-
-- Explain the learning path from spacecraft fundamentals to exploitation and defense.
-
-Purpose in thesis:
-
-- Provide raw material for literature/methodology framing.
-- Help organize the thesis narrative.
-- Support background sections on spacecraft architecture, RF trust boundaries, packet analysis, and defensive engineering.
-
----
-
-## Notebook
-
-Purpose in repository:
-
-- Provides guided exercises for offline analysis.
-
-Purpose in thesis:
-
-- Can become a reproducible experiment notebook.
-- Can generate tables, packet examples, and analysis outputs for the thesis.
-
----
-
-## Recommended Thesis Use
-
-Use the repository as a controlled testbed, not as a collection of unrelated hacking examples.
+Use the repository as a controlled satellite-like security testbed.
 
 The correct research interpretation is:
 
 ```text
-The repo provides a satellite-like command-and-telemetry environment where attack chains can be modeled, mapped to SPARTA, and used to evaluate defensive controls against service disruption.
+The repo provides a PWNSAT/FlatSat command-and-telemetry environment where a safe forged-telecommand spoofing scenario can be reproduced and anti-spoofing controls can be evaluated with repeatable metrics.
 ```
+
+---
+
+## Do Not Overstate
+
+The repo does not prove real-satellite exploitability.
+
+It supports:
+
+- lab-based spoofing-resilience evaluation,
+- protocol-level defensive control testing,
+- FlatSat reproducibility,
+- SPARTA-supported analysis,
+- thesis evidence collection.
+
+It does not support:
+
+- attacks against operational satellites,
+- uncontrolled RF transmission,
+- broad claims about all spacecraft,
+- full operational key-management conclusions,
+- real-world jamming or GNSS spoofing claims.
