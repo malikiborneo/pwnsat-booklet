@@ -54,3 +54,6 @@ pwnsat-booklet/
 ├── *.md            # Booklet chapters, appendices, and thesis notes
 ├── Booklet.ipynb   # Notebook-based booklet build / documentation workflow
 └── requirements-booklet.txt
+
+
+````md
