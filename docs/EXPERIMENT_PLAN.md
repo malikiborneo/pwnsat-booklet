@@ -1,279 +1,248 @@
 # Experiment Plan
 
-This document turns the PwnSat / FlatSat repository into a repeatable thesis experiment plan.
+This document turns the repository into a repeatable experiment plan for the latest thesis direction.
 
-All experiments must remain inside an isolated, authorized laboratory environment. USB/local reproduction is preferred before any controlled RF test.
+## Latest Thesis Direction
+
+**Experimental Evaluation of Anti-Spoofing Controls Against Space-Link Command-Deception in a PWNSAT FlatSat and Software-Defined Radio Testbed**
+
+All experiments must remain inside an isolated, authorised laboratory environment. Software-first or USB/local reproduction is preferred before any controlled SDR-backed test.
 
 ---
 
 ## Research Objective
 
-Evaluate how defensive controls reduce satellite service-disruption risk in a controlled PwnSat / FlatSat command-and-telemetry environment.
+Reproduce a controlled space-link spoofing scenario in a PWNSAT FlatSat / SDR testbed and evaluate how four protocol-level defensive controls affect unauthorised telecommand acceptance, telemetry behaviour, detection, and recovery.
 
-The experiment workflow is:
+The four controls are:
+
+- C1: cryptographic authentication,
+- C2: command allow-listing and strict typing,
+- C3: length and structural validation,
+- C4: sequence-counter freshness / anti-replay.
+
+---
+
+## Research Questions
+
+| ID | Question | Expected Evidence |
+|---|---|---|
+| RQ1 | How can a space-link spoofing chain be safely reproduced in a PWNSAT FlatSat / SDR testbed and mapped to SPARTA and Attack Flow? | Scenario specification, testbed architecture, baseline traces, SPARTA mapping, Attack Flow diagram. |
+| RQ2 | How effective are C1-C4, individually and in combination, at reducing command acceptance, chain completion, disruption duration, and recovery time? | Repeated before/after trials, metric tables, false-rejection analysis. |
+| RQ3 | How can SDR-assisted observability and OpenC3 COSMOS logs improve evidence collection for spoofing detection and chain reconstruction? | Time-aligned logs, telemetry timelines, packet traces, time-to-detect and time-to-recover. |
+
+---
+
+## Testbed Architecture
 
 ```text
-baseline behavior
-  -> attack or malformed-input condition
-  -> defensive control implementation
-  -> repeated measurement
-  -> SPARTA / Attack Flow interpretation
+Ground Station VM / OpenC3 COSMOS
+  -> command generation
+  -> telemetry logging
+  -> command/telemetry server evidence
+
+Attacker / Analysis VM
+  -> SPP decoding and analysis
+  -> forged-frame construction for lab testing
+  -> SDR/link observation where authorised
+
+PWNSAT FlatSat / OBC emulator
+  -> receiver
+  -> SPP parse
+  -> APID dispatch
+  -> command handler
+  -> telemetry/state response
+
+SDR / link observer
+  -> controlled link evidence
+  -> timing correlation
 ```
 
 ---
 
-## General Safety Boundary
+## Safety Boundary
 
 Allowed:
 
-- local PwnSat / FlatSat testing,
-- offline packet analysis,
+- software-first emulator testing,
 - USB/local reproduction,
-- shielded, cabled, or otherwise authorized lab RF,
-- passive observation where legal,
-- documentation and defensive hardening.
+- PWNSAT / FlatSat lab testing,
+- cabled, attenuated, shielded, or otherwise authorised SDR use,
+- defensive control evaluation,
+- SPARTA / Attack Flow documentation.
 
 Not allowed:
 
 - real satellite targets,
-- public RF systems,
+- public RF links,
+- GNSS spoofing,
+- operational jamming,
 - third-party infrastructure,
-- uncontrolled RF fuzzing,
-- operational jamming procedures.
+- uncontrolled RF transmission,
+- publishing operationally harmful forged-command recipes.
 
 ---
 
-## Common Test Record
+## Scenario S1: Forged-Telecommand Spoofing
 
-Every experiment should record:
+### Goal
 
-| Field | Description |
-|---|---|
-| Test ID | Unique experiment identifier. |
-| Date | Date and time of test. |
-| Firmware build | Commit SHA, build artifact, or version. |
-| Transport | Offline, USB framed, RF receive-only, or controlled RF. |
-| Packet | Raw bytes and decoded SPP fields. |
-| Expected behavior | What should happen. |
-| Observed behavior | Logs, LED state, telemetry, reset, crash, or no response. |
-| SPARTA mapping | Relevant tactic/technique. |
-| Metric result | Timing, rejection count, disruption duration, or other measure. |
-| Safety controls | Shielding, low power, cabled setup, or USB-only mode. |
-| Interpretation | What the result means for the thesis. |
+Reproduce a safe, authorised forged-telecommand chain in the lab.
 
----
-
-## Experiment Group 1: Command Authority
-
-### Question
-
-Can unauthorized command traffic reach mission-impacting APID handlers?
-
-### Baseline
-
-Send valid commands in the controlled lab environment and confirm expected command behavior.
-
-Candidate APIDs:
-
-- `0x01` PING,
-- `0x02` RESETC,
-- `0x03` SEND_FW,
-- `0x04` SET_THRUSTER,
-- `0x05` SET_BEACON_RATE,
-- `0x06` BROADCAST_MSG,
-- `0x07` FLASH.
-
-### Attack Condition
-
-Send command packets without authentication or authorization and observe whether handlers execute.
-
-### Defensive Condition
-
-Add or simulate:
-
-- command authentication,
-- APID authorization policy,
-- TC/TM direction enforcement,
-- command audit telemetry.
-
-### Metrics
-
-| Metric | Meaning |
-|---|---|
-| Command acceptance rate | Percentage of test commands accepted. |
-| Unauthorized command rejection rate | Percentage of unauthorized commands rejected. |
-| State-change success rate | Whether protected state changed. |
-| Audit visibility | Whether accepted/rejected commands are visible in telemetry/logs. |
-
-### Expected Thesis Evidence
-
-A table comparing baseline and protected command behavior.
-
----
-
-## Experiment Group 2: Parser Robustness
-
-### Question
-
-Can malformed SPP packets cause parser instability or unsafe behavior?
-
-### Baseline
-
-Use valid SPP packets and confirm normal parsing.
-
-### Malformed Conditions
-
-Test controlled packet mutations:
-
-- truncated packet,
-- declared length larger than received data,
-- declared length equal to boundary values,
-- unexpected APID,
-- invalid version,
-- trailing bytes,
-- one-byte payload edge cases.
-
-### Defensive Condition
-
-Add or simulate strict parser validation:
+### Chain
 
 ```text
-buffer != NULL
-space_packet != NULL
-buffer_len >= SPP_PRIMARY_HEADER_LEN
-version == CCSDS_SPP_VERSION
-data_field_size = header.length + 1
-data_field_size <= SPP_MAX_PAYLOAD_CHUNK
-buffer_len == SPP_PRIMARY_HEADER_LEN + data_field_size
+1. Signal / protocol analysis
+2. Command dictionary or APID inference
+3. SPP frame forgery
+4. Signal or transport impersonation in controlled lab path
+5. Command injection into OBC command pipeline
+6. Unauthorised command execution attempt
+7. Safe analogue mission impact or rejection event
 ```
 
-### Metrics
+### SPARTA Support
 
-| Metric | Meaning |
+Candidate mapping:
+
+- REC-0002 Signal Analysis,
+- RE-0001 Reverse Engineering,
+- EX-0007 Signal Impersonation,
+- EX-0002 Command Injection,
+- EX-0001 Unauthorised Command Execution,
+- IMP-0005 Denial of Service or safe analogue disruption impact.
+
+---
+
+## Scenario S2: Sequence-Aware Spoof Variant
+
+### Goal
+
+Evaluate whether freshness checking changes the result when an attacker reuses, guesses, or manipulates sequence values.
+
+### Additional Variable
+
+- SPP Sequence Count behaviour.
+
+### Main Control Tested
+
+- C4 sequence-counter freshness / anti-replay.
+
+---
+
+## Control Matrix
+
+Run the same scenario under these configurations:
+
+| Configuration | Controls Enabled |
 |---|---|
-| Malformed rejection rate | Percentage of malformed packets rejected. |
-| Parser crash count | Number of crashes or sanitizer findings. |
-| Unexpected handler reachability | Whether malformed packets reach APID handlers. |
-| False rejection rate | Whether valid packets are rejected. |
+| Baseline | none |
+| C1 | authentication only |
+| C2 | allow-list / strict typing only |
+| C3 | length / structural validation only |
+| C4 | sequence freshness only |
+| C1+C2 | authentication + allow-list |
+| C1+C3 | authentication + length validation |
+| C1+C4 | authentication + freshness |
+| C2+C3 | allow-list + length validation |
+| C2+C4 | allow-list + freshness |
+| C3+C4 | length validation + freshness |
+| C1+C2+C3+C4 | full control set |
 
-### Expected Thesis Evidence
-
-- packet mutation table,
-- baseline vs hardened parser result,
-- sanitizer or debug evidence where available.
+Target: at least `N >= 30` repeated trials per configuration where feasible.
 
 ---
 
-## Experiment Group 3: Service Disruption
+## Operational Definitions
 
-### Question
+### Forged Command Accepted
 
-Can valid-looking commands degrade availability or telemetry service?
+A forged command is accepted when it reaches the command handler and produces an expected safe effect, acknowledgement, state change, or telemetry event.
 
-### Test Cases
+### Chain Completion
 
-| Case | APID | Expected Disruption |
-|---|---|---|
-| Reset loop | `0x02` | Board reset or command-path interruption. |
-| Beacon flood | `0x05` | Excessive beacon traffic or telemetry timing disruption. |
-| Flash transfer abuse | `0x07` | Blocking transfer and normal telemetry delay. |
-| Broadcast misuse | `0x06` | Retune attempt or unsafe handler behavior. |
+The chain completes when the forged command reaches the defined safe impact condition.
 
-### Defensive Condition
+### Service Disruption / Safe Analogue Impact
 
-Add or simulate:
+A safe analogue impact may include:
 
-- reset cooldown,
-- minimum beacon interval,
-- transfer quota,
-- command rate limiting,
-- mode-gated high-impact commands,
-- safe-mode policy.
+- unauthorised state change,
+- telemetry deviation,
+- command acknowledgement inconsistency,
+- command-path delay,
+- safe-mode-like state transition in emulator/testbed,
+- operator-visible anomaly.
 
-### Metrics
+---
 
-| Metric | Meaning |
+## Primary Metrics
+
+| Metric | Definition |
 |---|---|
-| Disruption duration | Time from disruption start to normal recovery. |
-| Telemetry loss interval | Time without normal telemetry. |
-| Command response delay | Delay before command processing resumes. |
-| Recovery success | Whether normal operation returns automatically. |
-| Control effectiveness | Reduction in disruption compared with baseline. |
-
-### Expected Thesis Evidence
-
-A before/after table showing how rate limits and policy reduce disruption.
-
----
-
-## Experiment Group 4: Telemetry Trust and Observability
-
-### Question
-
-Can telemetry be trusted, and can the lab observe when telemetry is manipulated or disrupted?
-
-### Baseline
-
-Record normal telemetry timing and values.
-
-### Test Conditions
-
-- compare I2C sensor activity with APID `0x08` telemetry,
-- observe telemetry during command-induced state changes,
-- observe telemetry during service disruption,
-- evaluate whether telemetry carries validity or rejection information.
-
-### Defensive Condition
-
-Add or simulate:
-
-- telemetry validity flags,
-- range checks,
-- sudden-jump detection,
-- sequence counters,
-- integrity protection,
-- accepted/rejected command events.
-
-### Metrics
-
-| Metric | Meaning |
-|---|---|
-| Telemetry continuity | Whether telemetry remains available. |
-| Telemetry correctness | Whether telemetry reflects actual state. |
-| Detection time | Time to detect abnormal behavior. |
-| Recovery time | Time to return to normal telemetry. |
-| Observability coverage | Whether logs/telemetry explain what happened. |
-
-### Expected Thesis Evidence
-
-- telemetry timeline,
-- sensor-to-telemetry correlation,
-- control comparison table.
+| Chain completion rate | Percentage of trials reaching the defined impact condition. |
+| Command acceptance rate | Percentage of forged telecommands accepted for execution. |
+| Command rejection rate | Percentage of forged telecommands rejected by a control. |
+| Disruption duration | Time service remains below the defined threshold. |
+| Time-to-detect | Time from first observable deviation to detection event. |
+| Time-to-recover | Time from detection to restored baseline state. |
+| False-rejection rate | Percentage of legitimate commands incorrectly rejected. |
+| Operational overhead | Added latency, CPU/memory overhead, operator steps, alert burden. |
 
 ---
 
-## Suggested Experiment Sequence
+## Evidence Streams
 
-1. Establish USB PING baseline.
-2. Decode baseline telemetry.
-3. Run parser edge-case tests offline.
-4. Reproduce safe malformed-packet behavior through USB.
-5. Test service-disruption APIDs locally.
-6. Apply defensive controls.
-7. Repeat tests with controls enabled.
-8. Map each case to SPARTA and Attack Flow.
-9. Write results using the evidence log template.
+Capture and time-align:
+
+- COSMOS command logs,
+- COSMOS telemetry logs,
+- raw and decoded SPP packets,
+- FlatSat/OBC emulator state changes,
+- SDR/link observation where authorised,
+- operator workflow timestamps,
+- control rejection reasons.
 
 ---
 
-## Final Thesis Output
+## Procedure
 
-The final thesis should include:
+1. Establish baseline valid-command behaviour.
+2. Establish baseline forged-command behaviour in software-first mode.
+3. Record baseline command acceptance/rejection and telemetry response.
+4. Enable one control at a time and repeat the scenario.
+5. Enable pairwise control combinations and repeat.
+6. Enable full C1+C2+C3+C4 configuration and repeat.
+7. Confirm key results on FlatSat hardware where feasible.
+8. Correlate COSMOS logs, packet traces, telemetry, and SDR observations.
+9. Map interrupted chain steps to SPARTA and Attack Flow.
+10. Report results with central tendency, worst-case behaviour, and threats to validity.
 
-- attack-flow diagrams,
+---
+
+## Analysis
+
+For each configuration, report:
+
+- mean command acceptance rate,
+- confidence interval where possible,
+- worst-case acceptance/disruption result,
+- false-rejection rate,
+- overhead,
+- which chain step was interrupted,
+- whether the result was seen in software-only, hardware-backed, or both.
+
+---
+
+## Final Thesis Artefacts
+
+- testbed architecture diagram,
+- spoofing scenario specification,
+- control insertion-point diagram,
+- experiment matrix,
+- results tables,
 - SPARTA mapping table,
-- baseline vs controlled results,
-- defensive control effectiveness table,
-- discussion of limitations,
-- safe-scope statement,
-- reproducibility notes.
+- Attack Flow diagram,
+- evidence log pack,
+- threats-to-validity section,
+- practical defensive recommendations.
