@@ -1,101 +1,114 @@
 # Supervisor Brief
 
-## Working Thesis Direction
+## Latest Thesis Direction
 
-**Preventing Satellite Service Disruption: Attack Flow Modeling with SPARTA Mapping to Evaluate Ground-Segment and Command-Path Controls Using a PwnSat / FlatSat Laboratory Testbed**
+**Experimental Evaluation of Anti-Spoofing Controls Against Space-Link Command-Deception in a PWNSAT FlatSat and Software-Defined Radio Testbed**
 
-This repository supports a controlled research project on satellite cybersecurity. The work does **not** target real satellites, operational spacecraft, public RF systems, or third-party ground infrastructure.
+Student: Reza Maliki Akbar  
+Student ID: 34292020  
+Supervisory team: Dr. Bayu Anggorojati and Dr. Muhammad Johan Alibasa
 
-The research uses PwnSat / FlatSat as a satellite-like laboratory platform to study how command, telemetry, protocol parsing, and service-disruption risks can be modeled and reduced through defensive controls.
+This document reflects the revised proposal direction. The earlier Rizka Purwanto / ground-segment-control framing is treated as superseded background, not the current thesis direction.
 
 ---
 
 ## Plain-Language Summary
 
-The thesis investigates how satellite service disruption can occur when a spacecraft-like system accepts malformed, replayed, or unauthorized command traffic.
+The thesis studies a controlled satellite-security problem:
 
-The PwnSat / FlatSat testbed provides a safe environment where the command path, telemetry path, packet parser, RF/USB ingress paths, and simulated subsystem behavior can be inspected end to end.
+```text
+Can a forged telecommand be made to look legitimate to a satellite-like testbed,
+and which protocol-level defensive controls stop or detect it?
+```
 
-The research contribution is not simply to demonstrate attacks. The contribution is to build a repeatable method for:
+The work uses a PWNSAT FlatSat and SDR-supported lab setup to reproduce a safe, authorised space-link spoofing scenario. The experiment compares baseline behaviour against defensive controls and measures whether forged telecommands are accepted, rejected, detected, or recovered from.
 
-1. modeling attack chains,
-2. mapping them to SPARTA,
-3. identifying affected trust boundaries,
-4. applying defensive controls, and
-5. measuring whether those controls reduce disruption risk.
-
----
-
-## Why This Testbed Is Relevant
-
-PwnSat / FlatSat compresses several spacecraft-relevant concepts into a lab board:
-
-- command authority,
-- telemetry trust,
-- packet parsing,
-- APID-based command dispatch,
-- RF uplink and downlink behavior,
-- local USB command delivery,
-- sensor telemetry,
-- firmware-level defensive hardening.
-
-This makes it suitable for controlled cybersecurity experimentation without interacting with real space assets.
+The thesis is **not** about attacking real satellites, public satellite links, GNSS, or third-party ground stations.
 
 ---
 
-## Core Research Question
+## What Changed From the Previous Direction
 
-How can SPARTA-mapped Attack Flow modeling be used to evaluate defensive controls that reduce satellite service-disruption risk in a controlled PwnSat / FlatSat command-and-telemetry environment?
+Previous framing:
 
----
+```text
+SPARTA / Attack Flow modeling to evaluate broad ground-segment controls
+such as segmentation, container hardening, and log governance.
+```
 
-## Experimental Focus
+Current refined framing:
 
-The thesis should focus on four experiment groups:
+```text
+Hands-on experimental evaluation of space-link spoofing resilience
+in a PWNSAT FlatSat / PlutoSDR-style testbed.
+```
 
-1. **Command authority**
-   - Can unauthorized command traffic reach mission-impacting handlers?
-
-2. **Parser robustness**
-   - Can malformed SPP packets trigger unsafe parser behavior?
-
-3. **Service disruption**
-   - Can valid-looking commands degrade availability, telemetry, or command responsiveness?
-
-4. **Telemetry trust and observability**
-   - Can telemetry be trusted, and can the lab observe disruption or manipulation effects?
+SPARTA and Attack Flow are still useful, but they are now the **analysis layer**, not the main contribution.
 
 ---
 
-## Defensive Controls to Evaluate
+## Core Research Aim
 
-The main controls are:
+Reproduce a safe, lab-contained space-link spoofing chain and evaluate how four protocol-level controls affect unauthorised telecommand acceptance, telemetry behaviour, detection, and recovery.
 
-- command authentication,
-- APID authorization,
-- TC/TM direction enforcement,
-- packet length validation,
-- anti-replay counters,
-- command rate limits,
-- safe-mode or maintenance-mode command policy,
-- telemetry integrity,
-- telemetry validity flags,
-- audit telemetry for accepted and rejected commands.
+The four controls are:
+
+1. cryptographic authentication,
+2. command allow-listing and strict typing,
+3. length and structural validation,
+4. sequence-counter freshness / anti-replay.
 
 ---
 
-## Expected Measurements
+## Main Research Questions
 
-Possible thesis metrics include:
+### RQ1
 
-- command acceptance rate,
-- malformed packet rejection rate,
-- crash or reset occurrence,
-- telemetry disruption duration,
-- time to detect abnormal behavior,
-- time to recover normal telemetry,
-- number of commands rejected by policy,
-- effect of controls on normal command processing.
+How can a space-link spoofing chain be safely reproduced in a PWNSAT FlatSat / SDR testbed and mapped to SPARTA and Attack Flow?
+
+### RQ2
+
+How effective are the four controls, individually and in combination, at reducing forged-command acceptance, chain completion, disruption duration, and recovery time?
+
+### RQ3
+
+How can SDR-assisted observability and OpenC3 COSMOS mission-operation logs be combined to improve evidence collection for spoofing detection and chain reconstruction?
+
+---
+
+## Testbed Concept
+
+```text
+Ground Station VM / OpenC3 COSMOS
+  -> command generation and telemetry logging
+
+Attacker / analysis VM
+  -> SDR tools, SPP parsing, forged-frame construction, analysis
+
+PWNSAT FlatSat
+  -> satellite-like target with OBC, CCSDS SPP command path, telemetry path
+
+SDR / link observer
+  -> controlled lab link evidence and timing correlation
+```
+
+Where RF is used, it must remain cabled, attenuated, shielded, or otherwise authorised.
+
+---
+
+## Expected Contribution
+
+The contribution is not a new attack technique and not a real-satellite attack tutorial.
+
+The contribution is experimental evidence:
+
+- a reproducible PWNSAT / SDR testbed configuration,
+- a specified forged-telecommand spoofing scenario,
+- a control comparison matrix,
+- command/telemetry/link evidence,
+- before/after results,
+- SPARTA-supported interpretation,
+- practical recommendations on which controls reduce spoofing-driven disruption risk.
 
 ---
 
@@ -103,24 +116,26 @@ Possible thesis metrics include:
 
 In scope:
 
-- local PwnSat / FlatSat board,
-- offline packet analysis,
-- USB/local reproduction,
-- controlled and authorized lab RF only,
-- SPARTA and Attack Flow mapping,
-- defensive-control evaluation.
+- PWNSAT FlatSat,
+- software-first OBC command pipeline emulator,
+- controlled SDR-assisted observability,
+- CCSDS SPP telecommand framing,
+- OpenC3 COSMOS logs and telemetry,
+- defensive control evaluation,
+- SPARTA / Attack Flow mapping.
 
 Out of scope:
 
-- real satellite attacks,
-- unauthorized RF transmission,
-- public ground-station interaction,
-- operational jamming procedures,
-- uncontrolled RF fuzzing,
-- claims of full RF-triggered code execution without debugger evidence.
+- real satellite targets,
+- public RF links,
+- GNSS spoofing,
+- operational jamming,
+- third-party ground-station interaction,
+- uncontrolled RF transmission,
+- publishing complete harmful forged-command sequences for operational systems.
 
 ---
 
-## Supervisor-Level Value
+## Supervisor-Level One-Sentence Summary
 
-This research is academically useful because it converts a satellite hacking lab into a reproducible control-evaluation framework. The thesis can show how attack modeling, protocol analysis, firmware review, and defensive hardening combine to reduce service-disruption risk in spacecraft-like systems.
+This thesis evaluates how protocol-level anti-spoofing controls affect forged telecommand acceptance, detection, and recovery in a safe PWNSAT FlatSat / SDR satellite-security testbed.
