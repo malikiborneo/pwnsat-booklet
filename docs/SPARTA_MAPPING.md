@@ -1,216 +1,138 @@
 # SPARTA Mapping
 
-This document maps PwnSat / FlatSat technical findings to SPARTA-style space cybersecurity tactics and techniques.
+This document maps the latest thesis scenario to SPARTA and Attack Flow.
 
-The mapping is used for thesis structure. It should not be treated as proof of impact by itself. Each mapping must be supported by lab evidence, source-code evidence, packet evidence, telemetry evidence, or experiment logs.
+The revised thesis uses SPARTA and Attack Flow as an **analysis layer**, not as the main contribution. The main contribution is experimental evidence about anti-spoofing controls in a PWNSAT FlatSat / SDR testbed.
 
 ---
 
-## Mapping Method
-
-Use this process for each finding:
+## Latest Thesis Scenario
 
 ```text
-technical behavior
-  -> affected trust boundary
-  -> attack-chain step
-  -> SPARTA mapping
-  -> defensive control
-  -> measurable result
+Controlled space-link spoofing / command-deception scenario
+  -> forged telecommand enters command path
+  -> OBC parses SPP header
+  -> APID dispatch routes packet
+  -> handler executes or rejects command
+  -> telemetry/logs/SDR evidence show effect
+  -> controls interrupt the chain
+```
+
+---
+
+## Attack Flow: Scenario S1
+
+| Step | Description | Candidate SPARTA Mapping | Evidence |
+|---|---|---|---|
+| 1 | Signal or protocol analysis | REC-0002 Signal Analysis | captured/decoded packet structure, timing, APID observations |
+| 2 | Command dictionary / APID inference | RE-0001 Reverse Engineering | decoded SPP fields, APID table, firmware review |
+| 3 | SPP frame forgery | Frame forgery / command preparation | constructed lab-safe SPP packet and decoded fields |
+| 4 | Signal or transport impersonation | EX-0007 Signal Impersonation | controlled SDR/transport evidence in authorised lab |
+| 5 | Command injection into OBC pipeline | EX-0002 Command Injection | packet reaches parser/dispatcher |
+| 6 | Unauthorised command execution attempt | EX-0001 Unauthorised Command Execution | ACK/state change/handler log/rejection event |
+| 7 | Safe analogue impact or denial | IMP-0005 Denial of Service or analogous disruption impact | telemetry deviation, command delay, state change, recovery record |
+
+---
+
+## Attack Flow: Scenario S2
+
+S2 extends S1 with sequence-counter manipulation or reuse.
+
+| Step | Description | Candidate Mapping | Control Focus |
+|---|---|---|---|
+| 1 | Observe or infer sequence behaviour | REC-0002 / RE-0001 | identify normal sequence progression |
+| 2 | Reuse, guess, or manipulate sequence count | Command deception / replay-adjacent behaviour | C4 sequence freshness |
+| 3 | Attempt command acceptance | EX-0002 / EX-0001 | C1, C2, C3, C4 |
+| 4 | Observe rejection or impact | IMP-0005 if disruption occurs | telemetry/log evidence |
+
+---
+
+## Control-to-Chain Mapping
+
+| Control | Chain Step Interrupted | Expected Effect |
+|---|---|---|
+| C1 Cryptographic authentication | before SPP header parse / before command trust decision | forged packet rejected even if well-formed |
+| C2 Command allow-listing and strict typing | APID dispatch to command handler | unauthorised APID/type/command tuple rejected |
+| C3 Length and structural validation | SPP header parse | malformed or structurally invalid packets rejected before dispatch |
+| C4 Sequence-counter freshness | after parse, before dispatch | replayed, duplicate, stale, or out-of-window sequence values rejected |
+
+---
+
+## Finding-to-SPARTA Mapping
+
+| Technical Behaviour | SPARTA / Attack-Chain Interpretation | Defensive Control |
+|---|---|---|
+| Correct APID causes routing toward command handler | EX-0002 Command Injection / EX-0001 Unauthorised Command Execution | C2 allow-list and strict typing |
+| Well-formed forged packet is treated as command-like | EX-0007 Signal Impersonation leading to EX-0002 | C1 authentication |
+| Invalid length or malformed packet stresses parser | EX-0009 Exploit Software Vulnerability / erroneous input style behaviour | C3 structural validation |
+| Old or duplicated sequence values accepted | replay-adjacent command deception | C4 sequence freshness |
+| Command creates telemetry deviation or service delay | IMP-0005 Denial of Service or safe analogue disruption impact | C1-C4 combined controls |
+| Logs/telemetry fail to show rejection reason | weak detection and reconstruction | audit telemetry and time-aligned evidence |
+
+---
+
+## How to Use SPARTA in the Thesis
+
+Use SPARTA to answer:
+
+```text
+Where does this lab behaviour fit in the space-threat landscape?
+```
+
+Do not use SPARTA alone to claim:
+
+```text
+This control works.
+```
+
+Control effectiveness must come from repeated experiment results.
+
+---
+
+## Experiment Result Annotation Template
+
+For each control configuration, write:
+
+```text
+Configuration:
+Scenario:
+Accepted forged command? yes/no
+Interrupted chain step:
+Relevant SPARTA mapping:
+Evidence stream:
+Metric result:
+Interpretation:
 ```
 
 Example:
 
 ```text
-Unauthenticated command accepted
-  -> command authority boundary crossed
-  -> rogue command reaches APID handler
-  -> IA-0008.01 / EX-0001.01
-  -> command authentication + APID policy
-  -> unauthorized command rejection rate
+Configuration: C2 allow-list enabled
+Scenario: S1 forged telecommand
+Accepted forged command? no
+Interrupted chain step: APID dispatch -> command handler
+Relevant SPARTA mapping: EX-0002 / EX-0001
+Evidence stream: COSMOS log + OBC rejection telemetry
+Metric result: command acceptance rate reduced from baseline to protected condition
+Interpretation: strict APID/type policy reduced command-deception success in the lab testbed
 ```
-
----
-
-## Summary Mapping Table
-
-| Finding | Attack-Chain Role | Candidate SPARTA Mapping | Defensive Control |
-|---|---|---|---|
-| Public firmware and design information | Reconnaissance | REC-0001.01 Software Design; REC-0001.02 Firmware | Secure design review; avoid security by obscurity |
-| Hardware and bus discovery | Reconnaissance | REC-0001.04 Data Bus Information | Debug locking; telemetry validation; bus monitoring |
-| RF parameter discovery | Reconnaissance | REC-0003.01 Communications Equipment; REC-0003.03 Mission-Specific Channel Scanning | RF monitoring; avoid relying on hidden parameters |
-| Cleartext downlink telemetry | Exfiltration / reconnaissance | REC-0005.02 Downlink Intercept; EXF-0003.02 Downlink Exfiltration | Telemetry integrity and encryption |
-| Uplink command observation | Reconnaissance / replay preparation | REC-0005.01 Uplink Intercept Eavesdropping; EXF-0003.01 Uplink Exfiltration | Command authentication; anti-replay |
-| Rogue command source | Initial access | IA-0008.01 Rogue Ground Station | Authentication and source validation |
-| Command reaches APID dispatcher | Execution | EX-0001.01 Command Packets | APID authorization; TC/TM direction enforcement |
-| Malformed packet accepted by parser | Execution / erroneous input | EX-0013.02 Erroneous Input | Bounds-checked parsing |
-| Reset command abuse | Service disruption | EX-0001.01 Command Packets; DE-0002.03 Inhibit Spacecraft Functionality | Reset authorization and cooldown |
-| Beacon-rate abuse | Service degradation | EX-0013.01 Valid Commands; DE-0002.03 Inhibit Spacecraft Functionality | Rate limits; minimum interval |
-| Flash-transfer abuse | Exfiltration / service degradation | EXF-0003.02 Downlink Exfiltration; DE-0002.03 Inhibit Spacecraft Functionality | Transfer quota; non-blocking transfer |
-| Broadcast command retune | Unauthorized RF reconfiguration | EX-0001.01 Command Packets; IMP-0002 Disruption | Frequency allowlist; mode gate |
-| Thruster state manipulation | Mission-state manipulation | EX-0001.01 Command Packets; EX-0012.07 Propulsion Subsystem | Actuator authorization; safe-mode policy |
-| Sensor/I2C telemetry manipulation | Internal data trust | REC-0001.04 Data Bus Information; EX-0014.02 Bus Traffic Spoofing; EX-0014.03 Sensor Data | Plausibility checks; validity flags |
-| Uplink/downlink availability loss | Denial / impact | DE-0002.02 Jam Link Signal; IMP-0002 Disruption; IMP-0003 Denial | Link monitoring; degraded-mode operations |
-
----
-
-## Attack Flow 1: Unauthorized Command Execution
-
-```text
-Discover command format
-  -> build valid SPP telecommand
-  -> deliver through USB or controlled lab RF
-  -> command reaches parser
-  -> APID dispatcher executes handler
-  -> mission state changes
-```
-
-Candidate SPARTA mapping:
-
-- REC-0003.02 Commanding Details
-- IA-0008.01 Rogue Ground Station
-- EX-0001.01 Command Packets
-- IMP-0002 Disruption, depending on effect
-
-Defensive controls:
-
-- command authentication,
-- APID authorization,
-- direction enforcement,
-- command audit telemetry.
-
-Metrics:
-
-- command acceptance rate,
-- unauthorized command rejection rate,
-- state-change success or failure,
-- audit visibility.
-
----
-
-## Attack Flow 2: Malformed Packet Parser Failure
-
-```text
-Identify SPP header fields
-  -> mutate length field
-  -> send truncated or inconsistent packet
-  -> parser copies based on declared length
-  -> crash, unsafe read, or unexpected handler behavior
-```
-
-Candidate SPARTA mapping:
-
-- EX-0013.02 Erroneous Input
-- EX-0001.01 Command Packets, if command-like packet reaches dispatch
-- IMP-0003 Denial, if the effect removes availability
-
-Defensive controls:
-
-- strict packet length validation,
-- reject truncated packets,
-- reject impossible payload sizes,
-- fuzz parser before deployment.
-
-Metrics:
-
-- malformed packet rejection rate,
-- crash count,
-- handler reachability from malformed packets,
-- false rejection rate for valid packets.
-
----
-
-## Attack Flow 3: Service Disruption Through Valid Commands
-
-```text
-Build syntactically valid command
-  -> send command to high-impact APID
-  -> trigger reset, beacon flood, flash transfer, or broadcast behavior
-  -> degrade telemetry or command responsiveness
-```
-
-Candidate SPARTA mapping:
-
-- EX-0001.01 Command Packets
-- EX-0013.01 Valid Commands
-- DE-0002.03 Inhibit Spacecraft Functionality
-- IMP-0002 Disruption
-- IMP-0003 Denial
-
-Defensive controls:
-
-- rate limiting,
-- mode-gated commands,
-- reset cooldown,
-- transfer quota,
-- safe-mode policy.
-
-Metrics:
-
-- disruption duration,
-- telemetry loss interval,
-- recovery time,
-- rejected high-impact command count.
-
----
-
-## Attack Flow 4: Telemetry Trust and Sensor Data Path
-
-```text
-Observe sensor bus
-  -> correlate I2C reads with telemetry
-  -> change or disrupt sensor data in controlled lab condition
-  -> telemetry reflects manipulated or invalid state
-  -> operator visibility is affected
-```
-
-Candidate SPARTA mapping:
-
-- REC-0001.04 Data Bus Information
-- EX-0014.02 Bus Traffic Spoofing
-- EX-0014.03 Sensor Data
-- IMP-0002 Disruption, if operator decisions are affected
-
-Defensive controls:
-
-- sensor validity flags,
-- range checks,
-- sudden-jump detection,
-- redundant sensing where appropriate,
-- telemetry integrity protection.
-
-Metrics:
-
-- detection time,
-- invalid telemetry marking rate,
-- telemetry correctness,
-- operator-visible anomaly coverage.
 
 ---
 
 ## Claim Discipline
 
-SPARTA mapping does not automatically prove severity. Each mapped item needs evidence.
-
-Use these claim levels:
-
-| Claim | Evidence Needed |
+| Claim | Required Evidence |
 |---|---|
-| Mapped risk | Source code, packet format, or architecture supports the path. |
-| Reachable behavior | Command or packet reaches the relevant handler. |
-| Demonstrated impact | Logs, telemetry, reset, timing disruption, or state change observed. |
-| Reliable impact | Repeated successful reproduction across trials. |
-| Controlled exploitation | Debugger evidence shows controlled fault or execution influence. |
+| Mapped risk | source code, packet format, or architecture supports the path |
+| Reproduced lab chain | controlled lab packet reaches expected pipeline stage |
+| Demonstrated impact | telemetry/log/state/timing evidence shows safe analogue effect |
+| Control effectiveness | repeated baseline vs protected comparison |
+| Operational trade-off | false rejection, latency, CPU/memory, or operator overhead data |
 
 ---
 
-## Thesis Use
+## Thesis Position
 
-This file should support:
+SPARTA and Attack Flow help explain the scenario. They are not the thesis result.
 
-- thesis threat model,
-- Attack Flow diagrams,
-- SPARTA mapping table,
-- experiment design,
-- result interpretation,
-- defensive-control discussion.
+The thesis result is the measured effect of anti-spoofing controls against a controlled forged-telecommand chain.
