@@ -1,8 +1,19 @@
 # Defensive Controls
 
-This document defines the defensive controls to evaluate in the PwnSat / FlatSat thesis experiments.
+This document defines the four protocol-level defensive controls used in the latest thesis proposal.
 
-The purpose is to convert offensive findings into measurable engineering improvements.
+The earlier broad ground-segment controls are now background only. The current thesis evaluates spoofing resilience in the command path.
+
+---
+
+## Latest Control Focus
+
+| Control ID | Control | Main Purpose |
+|---|---|---|
+| C1 | Cryptographic authentication | Reject forged packets even when syntactically valid. |
+| C2 | Command allow-listing and strict typing | Reject unauthorised APID / Packet Type / command combinations. |
+| C3 | Length and structural validation | Reject malformed SPP packets before parser/handler misuse. |
+| C4 | Sequence-counter freshness / anti-replay | Reject duplicate, stale, or out-of-window command sequences. |
 
 ---
 
@@ -11,324 +22,252 @@ The purpose is to convert offensive findings into measurable engineering improve
 Each control should be evaluated using the same structure:
 
 ```text
-baseline weakness
-  -> proposed control
-  -> implementation or simulation
-  -> repeated test
-  -> measured result
-  -> thesis interpretation
+baseline forged-command behaviour
+  -> enable control
+  -> repeat same scenario
+  -> measure accepted/rejected commands
+  -> record telemetry/log/SDR evidence
+  -> compare against baseline
 ```
 
 ---
 
-## Control Summary
-
-| Control ID | Control | Primary Risk Reduced |
-|---|---|---|
-| CTRL-001 | Command authentication | Unauthorized telecommand execution |
-| CTRL-002 | APID authorization | High-impact command misuse |
-| CTRL-003 | TC/TM direction enforcement | Confused command/telemetry semantics |
-| CTRL-004 | Packet length validation | Parser instability and memory-safety bugs |
-| CTRL-005 | Anti-replay counters | Reuse of captured valid commands |
-| CTRL-006 | Command rate limits | Reset loops, beacon floods, and transfer abuse |
-| CTRL-007 | Safe-mode or maintenance-mode policy | Dangerous commands in unsafe states |
-| CTRL-008 | Telemetry integrity | Forged or corrupted telemetry |
-| CTRL-009 | Telemetry validity flags | Sensor failure or spoofing invisibility |
-| CTRL-010 | Command audit telemetry | Poor operator observability |
-
----
-
-## CTRL-001: Command Authentication
+## C1: Cryptographic Authentication
 
 ### Purpose
 
-Verify that the command sender is authorized before command dispatch.
+Ensure that a telecommand is accepted only when it carries a valid authentication tag.
 
-### Applies To
+### Candidate Implementation
 
-- RESETC,
-- SET_THRUSTER,
-- SET_BEACON_RATE,
-- BROADCAST_MSG,
-- FLASH,
-- any high-impact APID.
+For thesis scope, a simplified HMAC-based design is enough:
 
-### Evaluation Metric
+```text
+SPP packet fields + payload
+  -> HMAC-SHA256 with shared lab key
+  -> authentication tag appended or checked before dispatch
+```
 
-- unauthorized command rejection rate,
+### Pipeline Insertion Point
+
+```text
+Frame Sync
+  -> C1 authentication check
+  -> SPP Header Parse
+```
+
+### Expected Effect
+
+A forged command without a valid tag should be rejected before APID dispatch.
+
+### Metrics
+
+- forged command rejection rate,
 - valid command acceptance rate,
-- authentication failure telemetry visibility.
+- false rejection rate,
+- added command latency.
 
 ---
 
-## CTRL-002: APID Authorization
+## C2: Command Allow-Listing and Strict Typing
 
 ### Purpose
 
-Prevent all valid packets from reaching all handlers by default.
+Prevent a well-formed packet from reaching a handler unless its APID, Packet Type, command identifier, and expected mode are allowed.
 
-### Design Pattern
+### Candidate Manifest
 
-Use an APID policy table:
+```json
+{
+  "commands": [
+    {
+      "apid": "0x01",
+      "packet_type": "TC",
+      "name": "PING",
+      "min_len": 0,
+      "max_len": 0,
+      "mode": "any"
+    }
+  ]
+}
+```
 
-| APID | Min Payload | Max Payload | Auth Required | Mode Requirement |
-|---|---:|---:|---|---|
-| `0x01` PING | 0 | small | optional | any |
-| `0x02` RESETC | 0 | 0 | yes | maintenance/safe |
-| `0x03` SEND_FW | 0 | 0 | yes | authorized |
-| `0x04` SET_THRUSTER | 2 | 2 | yes | simulation/safe |
-| `0x05` SET_BEACON_RATE | 1 | 1 | yes | authorized |
-| `0x06` BROADCAST_MSG | 2 | bounded | yes | communications maintenance |
-| `0x07` FLASH | 0 | bounded | yes | transfer mode |
-| `0x08` SEND_TM | fixed | fixed | not TC | telemetry only |
+### Pipeline Insertion Point
 
-### Evaluation Metric
+```text
+SPP Header Parse
+  -> APID Dispatch
+  -> C2 allow-list / strict type check
+  -> Command Handler
+```
 
-- protected APID rejection rate,
+### Expected Effect
+
+Packets with wrong APID, wrong Packet Type, wrong command ID, unexpected mode, or unexpected payload length should be rejected before handler execution.
+
+### Metrics
+
+- unauthorised command rejection rate,
+- wrong Packet Type rejection rate,
 - invalid APID rejection rate,
-- false rejection rate for valid commands.
+- legitimate command false rejection rate.
 
 ---
 
-## CTRL-003: TC/TM Direction Enforcement
+## C3: Length and Structural Validation
 
 ### Purpose
 
-Ensure that telecommands and telemetry are not treated interchangeably.
-
-### Required Rule
-
-- TC packet type should be required for command handlers.
-- TM packet type should not trigger command execution.
-- TM-only APIDs should not be accepted as telecommands.
-
-### Evaluation Metric
-
-- direction-confusion packet rejection rate.
-
----
-
-## CTRL-004: Packet Length Validation
-
-### Purpose
-
-Reject malformed SPP packets before copying payload bytes or dispatching APIDs.
+Reject malformed SPP packets before they can affect parser or handler behaviour.
 
 ### Required Checks
 
 ```text
-space_packet != NULL
 buffer != NULL
+space_packet != NULL
 buffer_len >= SPP_PRIMARY_HEADER_LEN
-version == CCSDS_SPP_VERSION
-data_field_size = header.length + 1
-data_field_size <= SPP_MAX_PAYLOAD_CHUNK
+version == expected SPP version
+data_field_size = length_field + 1
+data_field_size <= maximum supported payload
 buffer_len == SPP_PRIMARY_HEADER_LEN + data_field_size
+APID-specific length rule passes
+secondary-header rule passes, if used
 ```
 
-If trailing bytes are allowed, they must be documented and excluded from command dispatch.
+### Pipeline Insertion Point
 
-### Evaluation Metric
+```text
+Frame Sync
+  -> SPP Header Parse
+  -> C3 structural validation
+  -> APID Dispatch
+```
+
+### Expected Effect
+
+Malformed, truncated, oversized, or structurally inconsistent packets should not reach APID dispatch.
+
+### Metrics
 
 - malformed packet rejection rate,
+- unexpected handler reachability,
 - parser crash count,
-- handler reachability from malformed packets,
-- valid packet acceptance rate.
+- valid command false rejection rate.
 
 ---
 
-## CTRL-005: Anti-Replay Counters
+## C4: Sequence-Counter Freshness / Anti-Replay
 
 ### Purpose
 
-Prevent old valid commands from being reused.
+Prevent accepted command traffic from being replayed or accepted with stale sequence values.
 
-### Design Options
+### Candidate Implementation
 
-- maintain last accepted counter per APID,
-- reject duplicate counters,
-- reject backwards counters,
-- bind counters to authentication,
-- expire commands after a validity window.
+```text
+per-APID last accepted sequence count
+sliding acceptance window
+reject duplicate count
+reject backwards count
+record rejection reason
+```
 
-### Evaluation Metric
+### Pipeline Insertion Point
 
-- replayed command rejection rate,
-- accepted duplicate count,
-- tolerance to packet loss.
+```text
+SPP Header Parse
+  -> C4 freshness check
+  -> APID Dispatch
+```
+
+### Expected Effect
+
+Reused, duplicate, stale, or implausible sequence values should be rejected before handler execution.
+
+### Metrics
+
+- replay/stale sequence rejection rate,
+- false rejection rate under normal sequence gaps,
+- command acceptance rate after freshness enforcement.
 
 ---
 
-## CTRL-006: Command Rate Limits
+## Full Defence Configuration
 
-### Purpose
+The strongest configuration is:
 
-Reduce command-based denial of service.
+```text
+C1 + C2 + C3 + C4
+```
 
-### Suggested Limits
+Expected chain interruption:
 
-| Command | Control |
+```text
+forged packet without valid tag
+  -> rejected by C1
+
+well-formed but unauthorised command
+  -> rejected by C2
+
+malformed SPP structure
+  -> rejected by C3
+
+replayed or stale sequence
+  -> rejected by C4
+```
+
+---
+
+## Control Matrix
+
+| Configuration | Purpose |
 |---|---|
-| RESETC | cooldown, confirmation, authorization |
-| SET_BEACON_RATE | minimum interval and change-rate limit |
-| FLASH | transfer quota and transfer state |
-| BROADCAST_MSG | frequency allowlist and payload limit |
-| SET_THRUSTER | mode gate and range limit |
-
-### Evaluation Metric
-
-- disruption duration,
-- command rejection count,
-- telemetry loss interval,
-- recovery time.
+| Baseline | measure unprotected behaviour |
+| C1 | authentication-only effectiveness |
+| C2 | allow-list-only effectiveness |
+| C3 | structural-validation-only effectiveness |
+| C4 | freshness-only effectiveness |
+| Pairwise combinations | identify useful control interactions |
+| C1+C2+C3+C4 | evaluate full defence configuration |
 
 ---
 
-## CTRL-007: Safe-Mode or Maintenance-Mode Policy
+## Operational Trade-Offs
 
-### Purpose
+Each control may impose cost:
 
-Prevent dangerous commands from running in inappropriate mission states.
+| Control | Possible Cost |
+|---|---|
+| C1 | added latency, key management complexity, false rejection if tag handling fails |
+| C2 | configuration burden, maintenance of allowed command manifest |
+| C3 | rejection of edge-case but legitimate packets if rules are too strict |
+| C4 | packet-loss tolerance challenge, sequence resynchronisation burden |
 
-### Example Policy
-
-```text
-normal mode:
-  allow PING, SEND_FW, limited telemetry requests
-
-maintenance mode:
-  allow RESETC, FLASH, BROADCAST_MSG with authorization
-
-simulation/safe actuator mode:
-  allow SET_THRUSTER with range checks
-```
-
-### Evaluation Metric
-
-- dangerous command rejection rate outside allowed mode,
-- recovery behavior after mode change.
-
----
-
-## CTRL-008: Telemetry Integrity
-
-### Purpose
-
-Let operators detect telemetry modification or corruption.
-
-### Design Options
-
-- sequence counters,
-- message authentication tag,
-- checksum for accidental corruption,
-- signed event logs,
-- authenticated encryption for sensitive telemetry.
-
-### Evaluation Metric
-
-- corrupted telemetry detection rate,
-- missing telemetry detection time,
-- sequence gap detection.
-
----
-
-## CTRL-009: Telemetry Validity Flags
-
-### Purpose
-
-Avoid blindly trusting sensor values when sensors fail or bus data is suspicious.
-
-### Example Flags
-
-```text
-sensor_valid
-sensor_read_error
-out_of_range
-sudden_jump_detected
-command_recently_changed_state
-telemetry_integrity_ok
-```
-
-### Evaluation Metric
-
-- invalid telemetry marking rate,
-- false alarm rate,
-- operator-visible anomaly coverage.
-
----
-
-## CTRL-010: Command Audit Telemetry
-
-### Purpose
-
-Make command acceptance and rejection visible to operators.
-
-### Recommended Audit Fields
-
-```text
-last_command_apid
-last_command_status
-last_rejection_reason
-last_auth_failure_count
-last_replay_rejection_count
-last_policy_rejection_count
-```
-
-### Evaluation Metric
-
-- accepted/rejected command visibility,
-- time to detect unauthorized command attempts,
-- completeness of event logs.
-
----
-
-## Recommended Control Bundles
-
-### Minimal Parser Hardening Bundle
-
-- CTRL-004 Packet length validation
-- CTRL-003 TC/TM direction enforcement
-- CTRL-002 APID payload policy
-
-### Command Authority Bundle
-
-- CTRL-001 Command authentication
-- CTRL-002 APID authorization
-- CTRL-005 Anti-replay counters
-- CTRL-010 Command audit telemetry
-
-### Service-Disruption Bundle
-
-- CTRL-006 Command rate limits
-- CTRL-007 Safe-mode policy
-- CTRL-010 Command audit telemetry
-
-### Telemetry Trust Bundle
-
-- CTRL-008 Telemetry integrity
-- CTRL-009 Telemetry validity flags
-- CTRL-010 Command audit telemetry
+The thesis should report these trade-offs, not only security improvement.
 
 ---
 
 ## Thesis Evaluation Table Template
 
-| Control | Baseline Result | Protected Result | Improvement | Notes |
-|---|---|---|---|---|
-| Packet length validation | TBD | TBD | TBD | Parser robustness |
-| APID authorization | TBD | TBD | TBD | Command authority |
-| Rate limit | TBD | TBD | TBD | Service disruption |
-| Telemetry validity flags | TBD | TBD | TBD | Observability |
+| Control Config | Forged Acceptance Rate | Chain Completion Rate | TTD | TTR | False Rejection | Overhead | Interpretation |
+|---|---:|---:|---:|---:|---:|---:|---|
+| Baseline | TBD | TBD | TBD | TBD | TBD | TBD | unprotected behaviour |
+| C1 | TBD | TBD | TBD | TBD | TBD | TBD | authentication effect |
+| C2 | TBD | TBD | TBD | TBD | TBD | TBD | allow-list effect |
+| C3 | TBD | TBD | TBD | TBD | TBD | TBD | structural validation effect |
+| C4 | TBD | TBD | TBD | TBD | TBD | TBD | freshness effect |
+| Full | TBD | TBD | TBD | TBD | TBD | TBD | combined defence |
 
 ---
 
 ## Key Principle
 
-A defensive control is useful for the thesis only if it can be measured.
+A defensive control is thesis-useful only if its effect is measurable.
 
-For each control, define:
+For each control, record:
 
-1. what weakness it targets,
-2. what behavior should change,
+1. what chain step it targets,
+2. what behaviour should change,
 3. what metric proves the change,
-4. what evidence will be saved.
+4. what operational cost appears,
+5. what evidence supports the conclusion.
